@@ -1,0 +1,86 @@
+---
+title: "Demostraciones de Intervalos de Confianza"
+author: "Tu Nombre"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: united
+    code_folding: show
+    highlight: tango
+---
+
+## Introducción
+
+Este análisis busca demostrar la construcción de intervalos de confianza usando una simulación de una población con prevalencia de diabetes.
+
+## Configuración Inicial
+
+Cargamos las bibliotecas necesarias para el análisis.
+
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(kableExtra)
+options(knitr.table.format = "html")
+```
+
+```{r, pob}
+set.seed(123)
+diabetes <- rbinom(1200, 1, 0.59)
+round(prop.table(table(diabetes)), 2)
+```
+
+## Construcción del Intervalo de Confianza
+
+El intervalo de confianza para la proporción $p$ está dado por:
+
+$$
+p \pm z_{1-\alpha/2} \times \sqrt{\frac{p(1-p)}{n}}
+$$
+
+Donde $z_{1-\alpha/2}$ es el valor crítico de la distribución normal estándar para un nivel de confianza $\alpha$.
+
+Construimos el intervalo de confianza basado en la muestra.
+```{r, warning=FALSE,message=FALSE}
+ci.p <- function(var, alpha) {
+  n = length(var)
+  p = mean(var)
+  q = 1 - p
+  e = qnorm(1 - (alpha / 2)) * (sqrt(p * q / n))
+  li = p - e
+  ls = p + e
+  cbind(li, ls)
+}
+
+simulacion_CI <- function(data, alpha, reps) {
+  limites = NULL
+  for (i in 1:reps) {
+    muestra = sample(data, 75)
+    intervalo = ci.p(muestra, alpha)
+    limites = rbind(limites, intervalo)
+  }
+  
+  limites_df = as.data.frame(limites)
+  limites_df = limites_df %>% 
+    mutate(label = ifelse(li < mean(data) & ls > mean(data), "Contiene el parámetro", "No contiene el parámetro"))
+  
+  return(table(limites_df$label))
+}
+
+resultado_95 = simulacion_CI(diabetes, 0.05, 1000)
+resultado_99 = simulacion_CI(diabetes, 0.01, 1000)
+resultado_90 = simulacion_CI(diabetes, 0.10, 1000)
+
+data_frame(
+  `Nivel de Confianza` = c("95%", "99%", "90%"),
+  `Contiene el parámetro` = sprintf("%d (%.2f%%)", 
+                                    c(resultado_95["Contiene el parámetro"], resultado_99["Contiene el parámetro"], resultado_90["Contiene el parámetro"]), 
+                                    c(resultado_95["Contiene el parámetro"], resultado_99["Contiene el parámetro"], resultado_90["Contiene el parámetro"])/10),
+  `No contiene el parámetro` = sprintf("%d (%.2f%%)", 
+                                       c(resultado_95["No contiene el parámetro"], resultado_99["No contiene el parámetro"], resultado_90["No contiene el parámetro"]),
+                                       c(resultado_95["No contiene el parámetro"], resultado_99["No contiene el parámetro"], resultado_90["No contiene el parámetro"])/10)
+) %>% 
+  kable("html", escape = F) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F)
+```
+
+
